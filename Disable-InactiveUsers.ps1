@@ -17,11 +17,11 @@
 #>
 param(
 
-    [Parameter(ValueFromPipeline=$true,HelpMessage='Enter desired OU; (i.e. "OU=Users, DC=FOO, DC=BAR, DC=COM")')]
-    [String[]]$SearchOU = @(
-
-        "OU=01_Users, DC=ACME, DC=COM"
-    )
+    [Parameter(ValueFromPipeline=$true,HelpMessage='Enter desired OU to search to inactive users (90 days); (i.e. "OU=Users, DC=FOO, DC=BAR, DC=COM")')]
+    [String[]]$SearchOU = "OU=01_Users, DC=ACME, DC=COM",
+    
+    [Parameter(ValueFromPipeline=$true,HelpMessage='Enter desired destination OU for stale accounts (120 days); (i.e. "OU=DeleteTheseAccounts, OU=Users, DC=FOO, DC=BAR, DC=COM")')]
+    [String]$AccountsToDeleteOU = 'OU=Accounts_to_Delete, OU=Users, DC=ACME, DC=COM'
 )
 
 Try {
@@ -82,10 +82,8 @@ foreach($OU in $SearchOU) {
         $MoveInactive | Export-CSV $LogFile2 -Append -NoTypeInformation -Force
 
         foreach ($User in $InactiveUsers120) {
-
-            $AccountsToDelete = 'OU=Accounts_to_Delete, OU=Users, DC=ACME, DC=COM'
                
-            Get-ADUser -Filter {SamAccountName -eq "$User"} | Move-ADObject -TargetPath $AccountsToDelete
+            Get-ADUser -Filter {SamAccountName -eq "$User"} | Move-ADObject -TargetPath $AccountsToDeleteOU
         }
     }
 }
