@@ -31,7 +31,7 @@ Try {
 
 Catch {
 
-    Write-Host -ForegroundColor Yellow "`nUnable to load Active Directory Module is required to run this script. Please, install RSAT and configure this server properly."
+    Write-Host -ForegroundColor Yellow "`nUnable to load Active Directory Module. It is required to run this script."
     Break
 }
 
