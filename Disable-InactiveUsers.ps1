@@ -17,7 +17,7 @@
 #>
 param(
 
-    [Parameter(ValueFromPipeline=$true,HelpMessage='Enter desired OU to search to inactive users (90 days); (i.e. "OU=Users, DC=FOO, DC=BAR, DC=COM")')]
+    [Parameter(ValueFromPipeline=$true,HelpMessage='Enter desired OU to search for inactive users (90 days); (i.e. "OU=Users, DC=FOO, DC=BAR, DC=COM")')]
     [String[]]$SearchOU = "OU=01_Users, DC=ACME, DC=COM",
     
     [Parameter(ValueFromPipeline=$true,HelpMessage='Enter desired destination OU for stale accounts (120 days); (i.e. "OU=DeleteTheseAccounts, OU=Users, DC=FOO, DC=BAR, DC=COM")')]
