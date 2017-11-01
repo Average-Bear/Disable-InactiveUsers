@@ -8,7 +8,7 @@
     If users are stale (not logged in for more than 120 days) they are disabled and moved to the 09_Inactive OU for removal.
 
 .NOTES
-    Written by: Jbear 
+    Author: Jbear 
     Date: 3/11/2017
 
     Requires Active Directory Module
