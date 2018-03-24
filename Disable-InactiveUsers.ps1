@@ -1,29 +1,47 @@
 <#
 .SYNOPSIS
-    If users are inactive (not logged in for more than 90 days) they are disabled.
-    If users are stale (not logged in for more than 120 days) they are disabled and moved to the 09_Inactive OU for removal.
+    Inactive users (over 30 days) are disabled. Stale users (over 90 days) are moved to inactive OU.
 
 .DESCRIPTION
-    If users are inactive (not logged in for more than 90 days) they are disabled.
-    If users are stale (not logged in for more than 120 days) they are disabled and moved to the 09_Inactive OU for removal.
+    Inactive users (over 30 days) are disabled. Stale users (over 90 days) are moved to inactive OU.
+
+.DESCRIPTION
+    Script assists SysAdmins with the deletion of End-User home drives and to mitigate the Human Error factor; providing the checks and balances to maintain a clean enviroment.
 
 .NOTES
-    Author: Jbear 
-    Date: 3/11/2017
-
-    Requires Active Directory Module
-    This script is meant to be set as a scheduled task and run against and OU's specified in $SearchOU. 
-    Reports are output to \\NetShare\Weekly Reports\Inactive Users\*
+    Author: JBear 3/11/2017
+    Edited: JBear 3/24/2018
 #>
+
+[Cmdletbinding(SupportsShouldProcess)]
 param(
 
-    [Parameter(ValueFromPipeline=$true,HelpMessage='Enter desired OU to search for inactive users (90 days); (i.e. "OU=Users, DC=FOO, DC=BAR, DC=COM")')]
-    [ValidateNotNullOrEmpty()] 
-    [String[]]$SearchOU = "OU=01_Users, DC=ACME, DC=COM",
+    [Parameter(DontShow)]
+    [String[]]$SearchOU = @(
+
+        "OU=01_Users, DC=ACME, DC=COM"
+    ),
+
+    [Parameter(DontShow)]
+    $InactiveOU = 'OU=11_InactiveUsers, DC=ACME, DC=COM',
+
+    [Parameter(DontShow)]
+    $LogDate = (Get-Date -format yyyyMMdd),
     
-    [Parameter(ValueFromPipeline=$true,HelpMessage='Enter desired destination OU for stale accounts (120 days); (i.e. "OU=DeleteTheseAccounts, OU=Users, DC=FOO, DC=BAR, DC=COM")')]
-    [ValidateNotNullOrEmpty()] 
-    [String]$AccountsToDeleteOU = 'OU=Accounts_to_Delete, OU=Users, DC=ACME, DC=COM'
+    [Parameter(DontShow)]
+    $LogFile = "\\ACMESHARE\IT\Reports\DisabledUsers\30DayInactive-$($logdate).csv",
+    
+    [Parameter(DontShow)]
+    $LogFile2 = "\\ACMESHARE\IT\Reports\DisabledUsers\90DayInactive-$($logdate).csv",
+    
+    [Parameter(DontShow)]
+    $Time  = (Get-Date).Adddays(-(30)),
+    
+    [Parameter(DontShow)]
+    $Time2 = (Get-Date).Adddays(-(90)),
+
+    [Parameter(DontShow)]
+    $Days = @($Time, $Time2)
 )
 
 Try {
@@ -33,59 +51,59 @@ Try {
 
 Catch {
 
-    Write-Host -ForegroundColor Yellow "`nUnable to load Active Directory Module. It is required to run this script."
+    Write-Host -ForegroundColor Yellow "`nUnable to reach Active Directory Module."
     Break
 }
 
-$LogDate = Get-Date -Format yyyyMMdd
-$LogFile = "\\NetShare\Weekly Reports\Inactive Users\90 Days Inactive Users - "  + $logdate + ".csv"
-$LogFile2 = "\\NetShare\Weekly Reports\Inactive Users\120 Days Inactive Users - "  + $logdate + ".csv"
-$Time  = (Get-Date).Adddays(-(90))
-$Time2 = (Get-Date).Adddays(-(120))
+function GetInactive {
+[Cmdletbinding(SupportsShouldProcess)]param()
 
-foreach($OU in $SearchOU) {
-
-    #Get all AD users with LastLogon more than 90 days
-    $FindInactive = Get-ADUser -SearchBase "$OU" -Filter {LastLogon -lt $Time} -Properties LastLogon, Description, SAMAccountName  
-    $FindInactive = $FindInactive | Sort SamAccountName | Select Name, Enabled, Description, @{Name="LastLogon"; Expression={[DateTime]::FromFileTime($_.LastLogon)}}, DistinguishedName, SamAccountName
-
-    #Add SamAccountNames to $InactiveUsers90 array
-    $InactiveUsers90 = $FindInactive.SamAccountName
-
-    #If array is empty, break from script
-    if($InactiveUsers90 -eq $NULL) {
-    
-        Break
-    }
-
-    else {
+    foreach($OU in $SearchOU) {
         
-        #Export information to $LogFile location
-        $FindInactive | Export-CSV $LogFile -Append -NoTypeInformation -Force
-        
-        #Disable all accounts over 90 days
-        $InactiveUsers90 | Disable-ADAccount
-    }
+        foreach($D in $Days) {
 
-    #Get all AD users with LastLogon more than 120 days
-    $MoveInactive = Get-ADUser -SearchBase "$OU" -Filter {LastLogon -lt $Time2} -Properties LastLogon, Description, SAMAccountName
-    $MoveInactive = $MoveInactive | Sort SamAccountName | Select Name, Enabled, Description, @{Name="LastLogon"; Expression={[DateTime]::FromFileTime($_.LastLogon)}}, DistinguishedName, SamAccountName
+            #Get all AD users with LastLogon more than 30 days
+            $Inactive = Get-ADUser -SearchBase $OU -Filter {LastLogon -lt $D} -Properties LastLogon, Description, SAMAccountName | Sort Name | 
+                Select Name, Enabled, Description, Lastlogon, DistinguishedName, SamAccountName
+            
+            
+            foreach($Item in $Inactive) {
 
-    #Add SamAccountNames to $InactiveUsers120 array
-    $InactiveUsers120 = $MoveInactive.SamAccountName
+                $DateTime = [DateTime]::FromFileTime($Item.LastLogon)
+                $Inactive30 = $( $DateTime -lt $Time ) | Where { $Item.Lastlogon -ne 0 }
+                $Inactive90 = $( $DateTime -lt $Time2 ) | Where { $Item.Lastlogon -ne 0 }
 
-    if($InactiveUsers120 -eq $NULL) {
-    
-        Break
-    }
-
-    else {
-
-        $MoveInactive | Export-CSV $LogFile2 -Append -NoTypeInformation -Force
-
-        foreach ($User in $InactiveUsers120) {
-               
-            Get-ADUser -Filter {SamAccountName -eq "$User"} | Move-ADObject -TargetPath $AccountsToDeleteOU
+                [PSCustomObject] @{
+            
+                    Name=$Item.Name
+                    Enabled=$Item.Enabled
+                    Description=$Item.Description
+                    LastLogonValue=$Item.LastLogon
+                    LastLogonDate=$DateTime
+                    DistinguishedName=$Item.DistinguishedName
+                    SamAccountName=$Item.SamAccountName
+                    Inactive30 = $Inactive30
+                    Inactive90 = $Inactive90
+                }
+            }
         }
     }
 }
+
+function DisableUsers {
+[Cmdletbinding(SupportsShouldProcess)]param()
+
+    $Getinactive | Select * -Unique | Export-CSV $LogFile -Append -NoTypeInformation -Force
+    $GetInactive | Where { $_.Inactive90 -eq $true } | Select * -Unique | Export-CSV $LogFile2 -Append -NoTypeInformation -Force
+
+    #Disable all accounts over 30 days
+    $GetInactive.SamAccountName | Select -Unique | Disable-ADAccount
+
+    ($GetInactive | Where {$_.Inactive90 -eq $true}).SamAccountName | Select -Unique | Get-ADUser -Filter {SamAccountName -like "*$_*"} | Move-ADObject -TargetPath $InactiveOU
+}
+
+#Call and store GetInactive function
+$Getinactive = GetInactive
+
+#Call DisableUsers function
+DisableUsers
