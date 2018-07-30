@@ -3,7 +3,7 @@
     Inactive users (over 35 days) are disabled. Stale users (over 90 days) are moved to inactive OU.
 
 .DESCRIPTION
-    Script assists SysAdmins with the deletion of End-User home drives and to mitigate the Human Error factor; providing the checks and balances to maintain a clean enviroment.
+    Inactive users (over 35 days) are disabled. Stale users (over 90 days) are moved to inactive OU; includes checks and balances to maintain a clean enviroment.
 
 .NOTES
     Author: JBear 3/11/2017
